@@ -16,7 +16,7 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 class LoginSerializer(serializers.Serializer):
-    username = serializers.CharField()
+    email = serializers.CharField()
     password = serializers.CharField(write_only=True)
 
     def validate(self, data):
@@ -32,17 +32,47 @@ class LoginSerializer(serializers.Serializer):
         data['user'] = user
         return data
     
+from rest_framework import serializers
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
 class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField()
+    email = serializers.EmailField()
 
     def validate(self, attrs):
-        self.token = attrs['refresh']
+        refresh_token = attrs['refresh']
+        email = attrs['email']
+
+        try:
+            # Decode and validate the refresh token
+            token = RefreshToken(refresh_token)
+            user_id = token.payload.get('user_id')
+            if user_id is None:
+                raise serializers.ValidationError({'refresh': 'Invalid token: missing user_id.'})
+
+            # Fetch the user
+            try:
+                user = User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                raise serializers.ValidationError({'refresh': 'User associated with this token no longer exists.'})
+
+            # Verify email matches
+            if user.email != email:
+                raise serializers.ValidationError({'email': 'Email does not match the token owner.'})
+
+            # Store token in the serializer instance for later use in save()
+            self.token = token
+
+        except TokenError as e:
+            raise serializers.ValidationError({'refresh': f'Invalid or expired token: {str(e)}'})
+
         return attrs
 
-    def save(self):
+    def save(self, **kwargs):
         try:
-            # Attempt to blacklist the provided refresh token
-            RefreshToken(self.token).blacklist()
-        except TokenError:
-            # If the token is invalid or already blacklisted, raise a validation error
-            raise serializers.ValidationError({'refresh': 'Invalid or expired token.'})
+            self.token.blacklist()
+        except TokenError as e:
+            raise serializers.ValidationError({'refresh': f'Failed to blacklist token: {str(e)}'})

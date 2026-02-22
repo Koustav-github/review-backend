@@ -30,7 +30,8 @@ class LoginView(generics.GenericAPIView):
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data
+        user = serializer.validated_data['user']
+        # user1 = serializer.validated_data
         refresh = RefreshToken.for_user(user)
         return Response({
             'user': UserSerializer(user).data,
@@ -39,16 +40,11 @@ class LoginView(generics.GenericAPIView):
         })
 
 class LogoutView(generics.GenericAPIView):
-    # Optional: blacklist refresh token
     serializer_class = LogoutSerializer
-    permission_classes = [IsAuthenticated]  # Add authentication if needed
+    permission_classes = []  # or [IsAuthenticated] if you also want access token auth
 
     def post(self, request):
-        try:
-            refresh_token = request.data.get('refresh')
-            if refresh_token:
-                token = RefreshToken(refresh_token)
-                token.blacklist()  # Requires rest_framework_simplejwt.token_blacklist app
-            return Response({"message": "Logged out successfully"}, status=status.HTTP_205_RESET_CONTENT)
-        except Exception:
-            return Response({"message": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({"message": "Logged out successfully."}, status=status.HTTP_205_RESET_CONTENT)
