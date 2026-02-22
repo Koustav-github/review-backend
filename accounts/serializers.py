@@ -32,11 +32,6 @@ class LoginSerializer(serializers.Serializer):
         data['user'] = user
         return data
     
-from rest_framework import serializers
-from rest_framework_simplejwt.tokens import RefreshToken, TokenError
-from django.contrib.auth import get_user_model
-
-User = get_user_model()
 
 class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField()
@@ -55,8 +50,8 @@ class LogoutSerializer(serializers.Serializer):
 
             # Fetch the user
             try:
-                user = User.objects.get(id=user_id)
-            except User.DoesNotExist:
+                user = CustomUser.objects.get(id=user_id)
+            except CustomUser.DoesNotExist:
                 raise serializers.ValidationError({'refresh': 'User associated with this token no longer exists.'})
 
             # Verify email matches
